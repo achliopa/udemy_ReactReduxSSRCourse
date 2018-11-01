@@ -161,3 +161,107 @@ module.exports = {
 ## Section 3 - Server Configuration
 
 ### Lecture 14 - Rebuilding and Restarting
+
+* with our current project setup we have issues. if we change our react component ad refresh app we dont see the change... we dont use webpack devserver...
+* our build process is static
+* we want any time we change our codebase to rerun webpack and restart server
+* to rerun webpack we modify the dev script adding '--watch' to keep webpack running and watch for changes
+* to restart the server we use nodemon. we want nodemon to restart when bundle.js changes and run node build/bundl.js. the nodemon script is `"dev:server": "nodemon --watch build --exec \"node build/bundle.js\"",`
+* we run both scripts in 2 terminals
+
+### Lecture 15 - Server Side Rendering, Isomorphic Javascript, Universal javascript
+
+* Server Side Rendering: Generate HTML on the server
+* Universal javascript: the same code runs on the server and the  browser
+* Isomorphic Javascript: the same code runs on the server and the browser
+* the last 2 buzzwords mean that we will use the same codestyle in browser and server. we dont do it
+* we want to write the same JS dialect in our project. as now our server code is transpiled with babel and webpackwe can use ES2015 on both sides
+* we start with replacing require statements with imports
+
+### Lecture 16 - Client Side JS
+
+* we expose a problem with our app setup. we add a button in jsx of Home React componet and an event handler to console log a message.
+* we test in browser but it does not console log anything
+* in a traditional react app React JS + our code => renders components to dom => sets up event handlers
+* in our current SSR express server sends back plain html (no handlers) 
+* in a full SSR app . we saw that render code gets send upo to browser in consecutive requests
+
+### Lecture 17 - Client Bundles
+
+* to solve the problem we will create 2 separate JS bundles using webpack
+	* 1st bundle: ServerCode+ReactApp (this code runs in backend)
+	* 2nd bundle: reactApp (ship this bundle down to the browser)
+* why dont use 1 bundle for server and client?? because some code might contain sensitive info and should not be sent to the browser
+* we setup a second webpack pipeline for our client bundle. we add a new webpack config file `webpack.client.js`. we cp the server webpack cofig. 
+* we dont need node target . also we setup a different entry point. ./src/client/client.js
+* our output is added to /public dir
+* we add some code in /client.js to test our webpack build
+* we add a build script in package.json `"dev:build:client": "webpack --config webpack.client.js --watch"`
+* we test it to sse if console.log runs
+
+### Lecture 18 - The Public Directory
+
+* we need to direct the browser to request and run the /public/bundle.js
+* we tell express to treat the public dir as a freely available resource `app.use(express.static('public'));`
+* to tell browser to use the client bundle we do a hackish addition to the express route handler.
+* we serve an explicit html string where we add the react rendered component and the link to bundle.js
+```
+app.get('/',(req,res)=>{
+	const content = renderToString(<Home />);
+
+	const html = `
+		<html>
+			<head></head>
+			<body>
+				<div>${content}</div>
+				<script src="bundle.js"></script>
+			</body>
+		</html>
+	`;
+
+	res.send(html);
+});
+```
+* our response now gets bundle
+
+### Lecture 19 - Why client.js
+
+* our server base file index.js imports frontend Home.js compoinent and intends to run on server (for rendering)
+* our client base file client.js imports Home.js with the intention to run on the browser (for dynamic content)
+* we  SHOULD NEVER NEVER import server side code in client.js
+* we will have some code to start a part of react app in browser and another part for server
+* we will have distinct redux and react configuration for server and for client
+* the lifecycle of our app when loaded in browser
+	* app rendered on the server into some div in the 'template'
+	* rendered app sent to the user's browser
+	* browser renders HTML file on the screen then loads client bundle
+	* client bundle boots up
+	* we manually render the entire React app a second time into the 'same ' div'
+	* react renders our app on teh client side, and compares the new HTML to  what already exists in teh document
+	* react 'takes over' the existing rendered app, binds event handlers etc
+
+### Lecture 20 - Client Bootup
+
+* rendering the react app a second time in client (browser) breathes life into the scaffold rendered the first time (dummy)
+* client.js will be the bootup location of our app int eh browser
+* in this file we dont do any server side rrendering. 
+* its like a classical react app base js file
+* we need to render the app in the same html tag like in server rendering. we add an id to the wrapper div
+```
+// start up point for the client side application
+import React from 'react';
+import ReactDOM from 'react-dom';
+import Home from './components/Home';
+
+ReactDOM.render(<Home />, document.querySelector('#root'));
+```
+* we have our 2 build scripts and one server run
+* we reffresh the page and get a warning from browser 'Calling ReactDOM.render() to hydrate server-rendered markup will stop working in React v17'
+* our button works
+* the process of putting life into the app is called hydrate. we use the correct method
+
+## Section 4 - Refactoring for Cleaner Code
+
+### Lecture 21 - Merging Webpack Config
+
+* 
