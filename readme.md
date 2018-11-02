@@ -324,3 +324,179 @@ module.exports = merge(baseConfig, config)
 * we can offer apis or else from express. but for html content delivery all will pass through to react
 
 ### Lecture 26 - BrowserRouter vs StaticRouter
+
+* react router behaviour will be different in inital render and subsequent hydration
+* in traditional react app react reouter works like:
+	* browser reequests /users
+	* express handler of 'app.get('*') responds'
+	* express sends down index.html
+	* express sends down bundle.js
+	* react boots up, react router boots up
+	* BrowserROuter looks at URL in address bar and renders the compoennt it has for the route
+* BrowserROute is designed to look at browsers address bar. 
+* when we render the app in the server we dont have the address bar available. so BrowserROute does not work in server. it throuws an error
+* the solution is to use 2 diff routers in our app
+	* StaticRouter when doing SSR (server side)
+	* BrowserRouter when app is running in the browser (client side)
+* StaticRouter is designed for use in server when doing SSR
+* we will make a new file ROutes.js. it will contain all different route mappings in our app. without the routers
+* we will import the file in the renderer.js file on the server (it will use the staticrouter) AND in the client.js file on the client (it will use BrowserROuter)
+* more in react router docs
+
+### Lecture 27 - Route Configuration
+
+* in /compoennts we add Routes.js as a functional compoennt to add our Route tags and export them to client and server routers
+```
+export default () => {
+	return (
+		<div>
+			<Route exact path='/' component={Home} />
+		</div>
+	);
+};
+```
+* we import Routes in client.js and BrowserROuter to wrap it
+
+```
+ReactDOM.hydrate(
+	<BrowserRouter>
+		<Routes />
+	</BrowserRouter>
+	, document.querySelector('#root'));
+```
+
+### Lecture 28 - HTML Mismatch
+
+* we run our app and test it. we get an HTML mismatch error for the added div we added in ROutes.
+in SSR code it does not exist
+* React expects render output between SSR and hydrated app to match
+
+### Lecture 29 - More on Route Configuration
+
+* we set Routes comp in server renderer.js using StatiCRouter to fix the problem
+* our rendertostring is
+```
+	const content = renderToString(
+		<StaticRouter context={{}}>
+			<Routes />
+		</StaticRouter>
+	);
+```
+* static router needs to be told what path we are looking for. it cannot access the search bar
+* so we need to pass in the request object from the express router handler in renderer and use it in StatiRouter
+```
+export default (req) => {
+	const content = renderToString(
+		<StaticRouter location={req.path} context={{}}>
+			<Routes />
+		</StaticRouter>
+	);
+```
+* eventually we will replace '/' in express handler with '*' to catch all routes
+
+### Lecture 30 - Routing Tiers
+
+* we should add a second dummy route to test `<Route path='/hi' component={()=> 'Hi'} />` we get an error not found . we replace '/' with '* ' in express route handler in index.js and is fixed
+
+## Section 6 - Integrating Support for Redux
+
+### Lecture 31 - The Users API
+
+* we will render a fake list of users on screen
+* we will consume a  ready made [api](https://react-ssr-api.herokuapp.com/) for the course
+* authentication in the app is handled whroiugh google oauth
+* api offers the follwoing routes
+	* / : api doc
+	* /users : user list
+	* /admins : list of admins (must log in)
+	* /auth/google : auth process
+	* /current_user : info on currently logged in user
+	I /logout : logout from api
+
+### Lecture 32 - Four Big Challenges
+
+* we need to fetch data from api
+* we will use the follwoing reducers: users, admins, auth
+* we will use the action creators : fetchUsers, fetchAdmins, fetchCurrentUser
+* the cahllenges on impleemtning redux in SSR
+	* redux needs different configuration on browser and server. why? in order to fix the other 3 problems SOLUTION: use fifferent stores using other lib components
+	* aspects of authentication needs to be handled on server. nomally this is done only on the browser why? cookie based authentication (cookies are browser thing) SOLUTION: find a way to access cookies on server
+	* needs some way to detect when all initial data load action creators are completed on the server why? to rerender new data render on string and sent it to browser ASAP. SOLUTION: detect when action creators finish
+	* need state rehydration on the browser 
+
+### Lecture 33 - Browser Store Creation
+
+* well setup 2 stores with redux . one in client and one in server
+* we start with client in client.js
+* imports are like any redux app
+```
+import { createStore, applyMiddleware } from 'redux';
+import thunk from 'redux-thunk';
+import { Provider } from 'react-redux';
+```
+* setup of store  is also like any redux app
+
+### Lecture 34 - Server Store Creation
+
+* we ll add in /helpers a second file to help add redux store in server names createStore.js
+* in the file we create a store and export it. no Provider
+```
+import { createStore, applyMiddleware } from 'redux';
+import thunk from 'redux-thunk';
+
+export default () +> {
+	create store = createStore(reducers, {}, applyMiddleware(thunk));
+	return store;
+};
+```
+* we will add the store to index.js. we do so to get the ability to track stae changes before we call renderToString
+* in index.js we will add some logic to initialize and load data into teh store
+* we pass the store in renderer
+* in renderer.js we use the Provider and the store in renderToString
+
+### Lecture 35 - FetchUsers Action Creator
+
+* we implement users reducer and fetchUsers action creator in normal redux way
+* we add a folder for actions. our action creator is
+```
+export const FETCH_USERS = 'fetch_users';
+export const fetchUsers = () => async dispatch => {
+	const res = await axios.get('https://react-ssr-api.herokuapp.com/users')
+
+	dispatch({
+		type: FETCH_USERS,
+		payload: res
+	});
+};
+```
+
+### Lecture 36 - The Users reducer
+
+* like normal a combineReducers and a reucer for our action
+
+### Lecture 37 - Reducers Imports
+
+* we import reducers in both createStore locations in client and server
+
+### Lecture 38 - UsersList Component
+
+* we will add a new realistic component to use the state from redux
+* we use connect to map statetoprops and the action creator to use it in a lifecycle method
+* we cannot just call the action creator as normal it will throw an error
+* we add a render helper method with map() method to render a list of names
+
+### Lecture 39 - Babel Polyfill
+
+* we add an entry for the new component in Routes. js file
+* we uncomment the action creator call in lifecycle method and when we test the app we get an error compaining about regeneratorRuntime
+* the error we caget is because we use async await syntac in action crator code
+* in index.js we import 'babel-polyfill' to make async await work in SSR
+* we also import it in client side 'client.js'
+* our test is successful. list renders
+* users are rendered in client. no SSR list rendering yet
+
+## Section 7 - Server Side Data Loading
+
+### Lecture 40 - Detecting Data Load COmpletion
+
+* 
