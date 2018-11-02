@@ -264,4 +264,63 @@ ReactDOM.render(<Home />, document.querySelector('#root'));
 
 ### Lecture 21 - Merging Webpack Config
 
-* 
+* we can now start adding components in Home and build a full fledged react application
+* we will refactor our code to prepare for future additions
+* we have a lot of duplicate config logic between webpack.client and webpack.server.js
+* babel setup is identical
+* isoometric apps purpose is to use same JS code on server and client
+* we will use one babel rule and import it in both configs using webpack-merge lib
+* we will have a base config with common rules that we will merge to the 2 config files
+* we add webpack.base.js we add a module export cping the entire babel module rule
+* we import the base file in both and the webpack-merge lib and use merge to export a merged config
+```
+const merge = require('webpack-merge');
+const baseConfig = require('./webpack.base.js');
+const config = {
+	// tell webpack the root file of our
+	// server application
+	entry: './src/client/client.js',
+
+	// tell webpack where to put the output file
+	// that is generated
+	output: {
+		filename: 'bundle.js',
+		path: path.resolve(__dirname, 'public')
+	}	
+};
+module.exports = merge(baseConfig, config)
+```
+
+### Lecture 22 - Single Script Startup
+
+* we restart our 2 build scripts
+* to dev our app we use 3 scripts... we will use another module 'npm-run-all' to run all with 1 script `"dev":"npm-run-all --parallel dev:*",`
+* we run all scripts starting with dev:* in parallel. make sure to replace : with - so that lib do not complain
+* all three scripts spit output on screen
+
+### Lecture 23 - Ignoring Files with Webpack
+
+* to reduce script startup time we add ignore on files to not trigger build
+* webpack puts the entire npm libraries source into the bundle. we want that on the client to use our app.
+* in server we dont want all libs. we dont care about size in server but its a matter of loading time
+* we use 'webpack-node-externals' npm package to do it
+* in server webpack config we require it `const webpackNodeExternals = require('webpack-node-externals');`
+* we add it in config `module.exports = merge(baseConfig, config);`
+* the result is that the node module lib sources are not added to the server bundle.js. speeed up time. bundle is skinned down
+
+### Lecture 24 - Renderer Helper
+
+* all our server side render logic and html is in index.js. as we ad dup it will grow a lot
+* we put our render logic in a separate file renderer.js in a new folder /helpers
+* this file will just return html as a string with renderTostring. we export it and thus separate react logic from express server
+
+## Section 5 - Adding Navigation
+
+### Lecture 25 - Implementing React Router Support
+
+* our next step in the app is to add navigation with react router
+* our app will have 2 routing layers. express router and react router
+* express router will not enforce routing rules / will pass through all to react (will serve/* ) aka singlepage app
+* we can offer apis or else from express. but for html content delivery all will pass through to react
+
+### Lecture 26 - BrowserRouter vs StaticRouter
