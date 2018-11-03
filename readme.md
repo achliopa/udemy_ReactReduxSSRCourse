@@ -499,4 +499,82 @@ export const fetchUsers = () => async dispatch => {
 
 ### Lecture 40 - Detecting Data Load COmpletion
 
-* 
+* we will now learn ow to detect when all initial data load action creators have completed on the server
+
+* this is an SSR propblem. in client when we run the app it works fine
+* in browser the react redux data flow is the usual. we call USerList. lifecycle method component did month calls action creator data are fethed state is changed component rerenders
+* the timeline of the client side  data flow is:
+	* entire app rendered
+	* UserList 'componentDidMount
+	* call 'fetchUsers'
+	* make API request
+	* ...wait for response
+	* get list of users
+	* list of users caught by reducer
+	* UserList component rerenders, shows users
+* in SSR we feed redux store in to rnderToString. then the rendered html is sent back to browser
+* there is no time fetching data from the backend
+* in SSR only step 1 of the flow is completed (app rendering) before the HTML response is sent back to the browser
+* in SSR lifecycle methods are not invoked
+
+### Lecture 41 - Solution #1 for Data Loading
+
+* we will not use this solution. but its the first one that usual comes to mind
+* we will attempt to render the app two times.
+	* render the app onece on the server: Render #1
+	* each rendered component calls its 'componentWillMount'
+	* call action creators from 'component will mount'
+	* ...wait for response
+	* somehow detect all requests are complete
+	* render the app again with the collected data: Render #2
+	* send rresult to browser
+* Pros: not a lot special code required
+* Cons: we have to render the app twice, only loads one round of requests
+* in this approach we would call renderToString 2 times  sequentially
+* if our app does 2 rounds of data fetch the second round is not rendered
+
+### Lecture 42 - #2 for Data Loading
+
+* this is the ultimate solution we will implement
+* next framework uses this idea
+* the flow is:
+	* figure out what components would have rendered (based on URL)
+	* call a 'loadData' method attached to each of these components
+	* ...wait for response...
+	* somehow detect all requests are complete
+	* render the app with the colected data
+	* send result to browser
+* the key to the solution is to attach a function to each component that describes the data the component needs to load in order to get rendered. then when a request  comes to our server we ll look into the url it is trying to access and figure out wqhich components need to render
+* then we will call the load data method for these components
+* PROS: only render the app once, makes data requirenets of each component clear
+* CONS: requires a ton of extra code. especially in react0-router
+* in our current setup react router with statiRouter has to render the entire app to decide which component to render
+* the solution is not elegant. we will leave react router asde and hack our way towards the solution
+
+### Lecture 43 - The React Router Config Library
+
+* we will implement the solution
+* we will focus on the first 2 steps
+	* figure out based on url which components need to render
+	* see in these components which dat aneed to get loaded
+* we will use a [react-router-config](https://github.com/ReactTraining/react-router/tree/master/packages/react-router-config) lib to do it. a subpackage of react-router
+* when starting to use reactrouter config we no longer structure our routes wit the nice plain react-router JSX syntax. routes are defined as JS objects. the router is an array of objects
+* we set up our routes in config style
+* in ROutes.js we remove the JSX export and we export an array of objects for paths
+```
+export default [
+	{
+		path: '/',
+		component: Home,
+		exact: true
+	},
+	{
+		path: '/users',
+		component: UsersList
+	}
+];
+```
+
+### Lecture 44 - Updating Route uses
+
+* we go to all files that import Router.js and fix the imports to use the new array
