@@ -577,4 +577,98 @@ export default [
 
 ### Lecture 44 - Updating Route uses
 
-* we go to all files that import Router.js and fix the imports to use the new array
+* we go to renderer.js that imports Router.js to make it use the exportedarray of rote objects
+* we import  renderRoutes helper from config `import { renderRoutes } from 'react-router-config';`
+* instead of <Routes /> we use the helper `<div>{renderRoutes(Routes)}</div>` in the StaticRouter
+* renderRoutes takes the objects and turns them into Route compoentns
+* we do the same in client.js
+
+### Lecture 45 - THe MatchRoutes function
+
+* we will use the config lib to determine which components to render on screen
+* in index.js we will add som ecode in teh express route handler that will get the req.path and go through the routes array to find which components need to be rendered
+* we import Routes.js exported array and a helper from react-router-config `import { matchRoutes } from 'react-router-config';
+`
+* we use matchRoutes `matchRoutes(Routes,req.path);` it returns a list of components that match the criteria
+```
+[ { route: { path: '/', component: [Function: Home], exact: true },
+    match: { path: '/', url: '/', isExact: true, params: {} } } ]
+
+```
+* so we know what we have to render without rendering the app. step 1 is done
+
+### Lecture 46 - LoadData Functions
+
+* usualy w ebind the datafetching methods with the rendering related lifecycle methods
+* we will use  our method loadData to find the data the componets to be rendered need
+* In the Component file: we will add the lodData method.this method will initiate some data loading process and attempt to load data required by the component
+* In Routes file: we will add the loadData function so that the file knows which loaddata function belongs to each component
+* In (Server) Index.js: we will call each of the matched components loadData function
+* UsersList is the only component that needs data. we add and export (named export) loadData method
+```
+function loadData() {
+	console.log('I am trying to load some  data');
+}
+export { loadData };
+```
+* in Routes.js we import the method `import UsersList, {loadData} from './components/UsersList';`
+and add it in the object
+```
+	...{
+		loadData: loadData,
+		path: '/users',
+		component: UsersList
+	}...
+```
+* we test our app. our matched route object now has the method exposed. so we can use it to initiate data loading inthe express route
+* we need to map through the list of map routes to call the methods. we need to check if the route component has the method before invoking it
+```
+	matchRoutes(Routes,req.path).map(({route}) => {
+		return route.loadData ? route.loadData() : null;
+	});
+```
+* we test and success. loadData is invoked
+
+### Lecture 47 - Store Dispatch
+
+* we need to put a datafetch request in teh loadData method
+* once we make the request we have to wait for it to complete
+* THe flow of data is: 
+	* (server) index.js: calls loadData() passing Redux store
+	* loadData method: manually dispatch action creator.we will pass the action created to the redux store directly
+	* loadData method: return a promise
+	* (server) index.js: wait promise to resolve
+	* (server) index.js: render application
+* in index.js we pass store in the loadData(). so all our loadData methods will have access to our server side redux store
+* our loadData method now becomes
+```
+function loadData(store) {
+	return store.dispatch(fetchUsers());
+}
+```
+* we manually call dispatch passing the actionCreator. action creator is invoked and the result passed to dispatch. what gets passed to dispatch is a promise from the async fetchusers that will go back to index.js for handling
+* so the map returns an array of promises. we will catche thm all with Promise.all
+* what goes back to index.js is a pending promise
+* when promise gets resolved we will render
+
+### Lecture 48 - Waiting for Data Load Completion
+
+* we use Promise.all. it takes multiple promises and returns a single one
+* when it resolves it rrenders
+```
+	Promise.all(promises).then(()=>{
+		res.send(renderer(req,store));
+	});
+```
+* we test on browser disabling js on page. the list renders instantly as what we get from server is the html (of the rendered page)
+
+### Lecture 49 - Breather and Review
+
+* we use store in loadData to manual use dispatch. in normal react-redux we use connect that through PRovider access store. in SSR and custom code in server we need store dispatch actions and refresh state
+* when we dispatch an action into the store all redux functionality works as normal
+
+## Section 8 - Organization with Page Components
+
+### Lecture 50 - THe Page Approach
+
+* 
