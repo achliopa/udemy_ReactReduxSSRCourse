@@ -809,4 +809,167 @@ name: "Chelsey Dietrich"
 
 ### Lecture 57 - Authentication Issues
 
-* 
+* authenication in a web app is like a contract between a browser and a server
+* in every request from the browser to the server it will include an identifying piece of info. a JWT , cookie or else
+* API will inspect and allow use to resources depending on the piece of info sent by the browser
+* with SSR this piece of info needs to be established on a different level
+* our rendering server stands in the middl eof Browser and API and needs to get the identifying info and pass it through to the API (only in the SSR phase)
+* SSR rendering server will need to know who is making the request and when hitting the backend APi it will need to fool it into thinking it is the browser talking
+* in traditional apps using OAuth. browser hit s the API saying. i went through the oauth process. API replyies: get a cookig with yout identifying coide. use it in your followup requests
+* our setup with SSR gives us an issue with authentication.
+	* as we host our API server and our Renderer server on different domains,subdomains or ports we will run into issues with cookies. 
+	* all cookies in our browser correspond to the domain,subdomain and port of the server who issued them
+	* when we get a cookie from api.our-app.com and hit the renderenr server at www.our-api.com our cookie is NOT sent along in the request
+	* our auth process with API Wont work with renrderer during SSR
+
+### Lecture 58 - Authentication via Proxy
+
+* we will use some trick (AGAIN ?!?!). we will setup a proxy on our renderer server
+* we will make sure that when a user wants to authenticate in our app instead of sending him to the API we will send him to the proxy on the renderer Server.
+* browser will think tht the cookie is issued by the renderer server so it wont have a problem anymore
+* the auth flow now looks like (messy):
+* inital page fetch (SSR phase) - PROXY inactive
+	* browser makes an initial page fetch:  he sends the cookie and asks or a page
+	* render server makes request to api on behalf of browser: sends the cooie and asks for protected data
+	* API server responds with the data. 
+	* render server renders page and sends it back
+* APP is hydrated (frontend render phase) - PROXY becomes active
+	* AJAX request from browser (w/ cookie) to Renderer PRoxy
+	* renderer forwards it to API server and cookie
+	* API srv sends data to proxy 
+	* proxy sends them back to browser
+
+### Lecture 59 - Why Not JWT's?
+
+* as cookies are domain specific we might think. why not use JWT instead?
+* in a JWT no cookies approach: in our frontsiderendering phase (after SSR) Redux decides it needs a resource at /users => browser makes a request to /users with the JWT in the HTTP request  to the Renderer server. 
+* our expectation from Renderer is to request content fro a route and get (instantly) a renderered page back
+* the reality when using JWT tokens int he request header is
+	* browser=>renderer: request content at '/'
+	* renderer=>browser: whats your JWT?
+	* browser=>renderer: heres the JWT
+	* renderer=> browser: here is your page
+* in a domain request only cookies get automaticaly attached to the request
+
+### Lecture 60 - Proxy Setup
+
+* steps on implementing authentication on SSR
+	* 1: setup proxy
+	* 2: make sure that any action creators we call during the SSR phase goes to the API
+	* 3: make sure that action creators called during Frontside rendering phase are sent to the PROXY and then to API
+* to setup the proxy we will use 'express-http-proxy' lib
+* we will setup the proxy in /src/index.js file (SSR root file)
+* we `import proxy from 'express-http-proxy';`
+* we use proxy as express middleware in our app (before all others) `app.use('/api',proxy('http://react-ssr-api.herokuapp.com', {
+	proxyReqOptDecorator(opts) {
+		opts.headers['x-forwarded-host'] = 'localhost:3000';
+		return opts;
+	}
+}));`
+* the statement says any /api route coming to renderer server to be forwarder to the server we spec in proxy (backend API srv)
+* the second config object is specific to the API we hit and has to do with GoogleoAuth requirements
+
+### Lecture 61 - Renderer to API Communication
+
+* we move to step 2 (make sure that any action creators we call during the SSR phase goes to the API)
+* DISCLAIMER: the code will be complex and subtle
+* the flow we will implement for the Initial Page Load Phase (SSR phase) is:
+	* request from browser comes (w/ cookie)
+	* Renderer server invokes fetchUsers Action Creator where an axios request is called
+	* the axios request will be directed to the backend API w/ the cookie from the browser included
+* the tricky part is to extract the cookie from the intiial request and use it in our subsequent request to the backend API (fool API impersonating browser)
+* our request to /users does not require auth so we dont need the cookie. we need it for the /admins request later on
+* the flow we will implement for the FOllowup requests (API requests) during frontside rendering phase:
+	* browser invokes fetchUsers Action Creator and in it an axios call to the /api route 
+	* axios request comes to renderer (PROXY) with the cookie attached
+	*  Proxy server passes through the request as is to the backend API 
+* this is more straightforward. but the same Action Creator issues an axios request to a different endpoint during this phase...
+* we will not use blatant if statement to do it but a more clever way
+
+### Lecture 62 - Axios Instances with Redux Thunk
+
+* we need to customize the behaviour of AXIOS depending on the environment it is invoked from (browser or server)
+* we will use a little know feature of axios([create an instance](https://github.com/axios/axios#creating-an-instance)) and redux-thunk([sourcecode](https://github.com/reduxjs/redux-thunk/blob/master/src/index.js)) to do it.
+* we will create a custom axios configuration creating multiple instances
+* the other feats we find in thunk source code
+```
+
+function createThunkMiddleware(extraArgument) {
+  return ({ dispatch, getState }) => next => action => {
+    if (typeof action === 'function') {
+      return action(dispatch, getState, extraArgument);
+    }
+
+    return next(action);
+  };
+}
+
+const thunk = createThunkMiddleware();
+thunk.withExtraArgument = createThunkMiddleware;
+
+export default thunk;
+```
+* we will use the `thunk.withExtraArgument` method of thunk to pass in an extraArgument...
+* so when thunk will dispatch an action it will carry on an extra argument
+* our approach to solving our problem will be:
+	* in server (SSR): create custom Axios => pass to redux-thunk as extraArgument => custom axios available in action creator
+	* in client (frontside rendering): create custom Axios => pass to redux-thunk as extraArgument => custom axios available in action creator
+* of course the custom Axios instance will be different in each case
+
+### Lecture 63 - Client Axios Instance
+
+* in client.js we create acustom Axios instance and pass it to redux-thunk so it will be availabe to all our action-creators
+* we import axios and create our instance
+```
+const axiosInstance = axios.create({
+	baseURL: '/api'
+});
+```
+* when we ll use this axios instance it will prepent the url we pass in the call with the '/api' string. PROXY will take advantage of it to pass it through
+* to pas sit in thunk we mod the applyMiddleware argument to `applyMiddleware(thunk.withExtraArgument(axiosInstance)`
+* to use it in our action creator (that is already using thunk) we add it in the arguments and use it to make the call. also we no longer need the full url as the base part is prepended by the custom axios instance specific to the environemnt
+```
+export const FETCH_USERS = 'fetch_users';
+export const fetchUsers = () => async (dispatch, getState, api) => {
+	const res = await api.get('/users')
+
+	dispatch({
+		type: FETCH_USERS,
+		payload: res
+	});
+};
+```
+
+### Lecture 64 - Server Axios Instance
+
+* we repeat the exercise for the server part. this time we need to do the cookie trick (extract it and use it in the request) so things are expected to be more complex
+* we work in /src/helpers/createStore.js and do the same trick
+* this time in the custom axios instance config object apart from teh baseURL we will insert the cookie to be passed trhough.
+* to get the cookie we need the req object coming in teh browser http req. 
+* the req object is available in the generic express route handler. so we pass it as input arg in the createStor() method call in index.js
+* our custom axios insance becomes
+```
+	const axiosInstance = axios.create({
+		baseURL: 'http://react-ssr-api.herokuapp.com',
+		headers: {
+			cookie: req.get('cookie') || ''
+		}
+	});
+```
+* we default the cookie to '' in case the browser calls the route with out any cookie attached to avoid crashes
+* we pass the instance in thunk like in client.js
+* NOTE! we might still want to keep the standard axios import in teh action creators file in case we want to hit another backend. the custom axios trick is used only for our api
+* we test and it WORKS!!! also in devtools -> network we se that our app is hitting the backend api correnctly
+
+### Lecture 65 - The Header Component
+
+* we have implemented the flow to handle resource retrieval for authenticated users. we need to add to our app the ability to trigger authentication and add pages that require authentication
+* we start by adding a header component with some links which will change appearance based on auth status
+* we have to decide where to put it
+* we dont have a central location for reusable components that need to be used in multiple locations (paths)
+* a workaround is to manually add the HEader component on both our page components (Not DRY)
+* to solve it our Routes.js we import a new App.js root component which then will import our Page components
+
+### Lecture 66 - Adding an App Component
+
+* we will add App.js  directly in /client folder
