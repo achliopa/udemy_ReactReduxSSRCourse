@@ -671,4 +671,142 @@ function loadData(store) {
 
 ### Lecture 50 - THe Page Approach
 
+* our component files in /components folder are root level components (roots components shown for a  route)
+* we will add reusable components in our app to be added in the root components
+* only root level components in our app will have loadData methods
+* we will add anew type of componet in our app called  Page. every root component in our app will be  called HomePae, usersPage etc
+* Each  of the Page Components: can have loadData method, can use reusable components
+
+### Lecture 51 - Refactoring to Pages
+
+* we add a new folder in /client called /pages. we move Home.js and userslist.js into there.
+* we rename them HomePage.js and UsersListPage.js. we ficx the imports at Routes.js
+
+### Lecture 52 - Refactoring Page Exports
+
+* int he future we might have multiple Page COmponents with amethod named loadData creating a conflict
+* to fix that we will export one object in the Component file which will contain the component and the method
+* our HomePage.js export becomes
+```
+export default {
+	component: Home
+};
+```
+* because we use the same parameters name as the router objects we use spread syntax in the ROutes. object
+```
+{
+		...HomePage,
+		path: '/',
+		exact: true
+```
+* our userlistpage export in same way becoems
+```
+export default {
+	component: connect(mapStateToProps, { fetchUsers })(UsersList),
+	loadData: loadData
+};
+```
+
+### Lecture 53 - Client State Rehydration
+
+* we move to the 4th challenge of Redux in SSR. state rehydration on the browser
+* an error caused by it is the warning in browser when hitting /users `Warning: Did not expect server HTML to contain a <li> in <ul>.`
+* again the HTML genrated in the server does not match with the html generated in the client
+* when we render the UserslistPage in server we renjder a list of li in the ul BUT when app is rendered by browser (client side) browser thinks we should not have any li in the ul
+* if we refresh page. the list disapeear for a moment and reapears
+* to understand what happens we see again the flow diagram:
+	* Server Redux fetches data  redux state={users:[{name:'tom'}.{name: 'bill'},..]}
+	* page rendered on server
+	* page HTML sent to browser
+	* client bundle.js sent to browser
+	* bundle creates its client side redux store
+	* page rendered with store from client side redux -> redux state={users:[]}
+* in server render our stoe is fully populated before rendering.
+* in client is initialy empty and then gets populated after mount.
+* we need to find a way to pass the state from server to client dyring hydration
+
+### Lecture 54 - More on Client State ReHydration
+
+* we  will use the createStore second param AKA 'initial state'
+* usually in tradiitonal react apps. our initial state is empty
+* in our case it makes sense to use this param to hydrate state
+* the way to pass our state from server to client is
+	* we will get the redux state with `store.getState()`
+	* we will dump it as JSON together with the rendered HTML (SSR)
+	* we will use createStore to pass it as initial state
+
+### Lecture 55 - Dumping State to Templates
+
+* we ll do the job in renderer.js where we have access to store and the html template
+* when we reache renderer the stotre is already populated and ready to render.
+* in our return html template we shove in the JSON representation of state as a JS script. passign it to the browser root object (window) as a variable we can use later
+```
+	return `
+		<html>
+			<head></head>
+			<body>
+				<div id="root">${content}</div>
+				<script>
+					window.INITIAL_STATE = ${JSON.stringify(store.getState())}
+				</script>
+				<script src="bundle.js"></script>
+			</body>
+		</html>
+	`;
+```
+* we test it and we can access the window.INITIAL_STATE variable in our browser console and wee the state in all its glory!
+* all we have to do is use it as initial state in client.js at createstore
+* our app is rock solid. refresh causes no flickering and is FAST
+* we still make a request to users API from the browser (componentDidMount lifecycle method in client use of action creator fetchUsers). we dont need it anymore?
+* actually no. it user visits home page first. then redux store wont be populated with users so when he visits USserList he will see an empty page... we keep it
+
+### Lecture 56 - Mitigating XSS Attacks
+
+* this particular piece of code
+```
+				<script>
+					window.INITIAL_STATE = ${JSON.stringify(store.getState())}
+				</script>
+```
+* is vulnerable to attacks adn a security flaw
+* to demonstrate the flw we will hit another api from our app 'https://react-ssr-api.herokuapp.com/users/xss'
+* we refresh the page an get an alert on screen with a message. where it is comming from?
+* we hit the url in broswer and see the following
+```
+[
+{
+id: 1,
+name: "</script><script>alert(1234567890)</script>"
+},
+{
+id: 2,
+name: "Ervin Howell"
+},
+{
+id: 3,
+name: "Clementine Bauch"
+},
+{
+id: 4,
+name: "Patricia Lebsack"
+},
+{
+id: 5,
+name: "Chelsey Dietrich"
+}
+]
+```
+* so we are getting a JS script as name.... when we fetch it. it executes directly by browser. thats what <script></script> does...
+* browser has protection on XSS attacks but on code react renders.. now we are explicitly sending html to browser already rendered so NO PROTECTIOn
+* we are VERY VERY VULNERABLE to XSS attacks. html complains about the </script> tag injected but it renders
+* to protect our app we need to scrub the data out of state. we assume there might be malicious data on the api we hit but we will make sure no code is executed.
+* we import a lib `import serialize from 'serialize-javascript';` in renderer.js. 
+* this script escapts any code executing code. we replate JSON.stringify with serialize
+* we see the script in html but is not executed so we are protected
+* what the method does it takes any special charavter in the wrapted html and replace it withthe unicode equivalent
+
+## Section 9 - Authentication in a Server Side Rendering World
+
+### Lecture 57 - Authentication Issues
+
 * 
