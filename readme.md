@@ -973,3 +973,4 @@ export const fetchUsers = () => async (dispatch, getState, api) => {
 ### Lecture 66 - Adding an App Component
 
 * we will add App.js  directly in /client folder
+* 
