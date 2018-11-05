@@ -1278,4 +1278,94 @@ export default {
 
 ### Lecture 88 - Meta Tags
 
-* 
+* when we put a link on social media engines look in the page pull ing content like image title and subtitle
+* we need to open the linked page and see where facebook or twitter pulled the data from
+* usually its a bunch of metatags
+* usually the tag is og: <something>
+* og stands for [open graph protocol](http://ogp.me/)
+* in opg it says how to set the metatags to help engines parse our content.
+* its a great way to improve seo
+
+
+### Lecture 89 - Setting Tags with Helmet
+
+* we need to change the metatags depending on the page we are visiting
+* we need to render metatags appropriate to that route
+* the services have bots running in the background that access our site and scrape the metatags from the content we render for them
+* for each route in our app we need to be able to change the metatags
+* these metatags are scraped from the lready rendered html of the initial SSR phase
+* most of the bots cannot render pages that why SSR is important in SEO
+* to set teh tags we use [React Helmet](https://github.com/nfl/react-helmet)
+* Helmet docs cover both ways: normal React Apps and SSR React apps
+* in a normal React app:
+	* user visits /users
+	* we render Helmet tag
+	* helmet takes new tags and manually tinkers with HTML in head tag
+ * on a server:
+ 	* user visits /users
+ 	* we render helmet tag
+ 	* helmet loads up all the meta tags we want to show
+ 	* we dump helmet's tags directly into the HTML template
+* in server we cannot use browser to tinkle hetml . we dont even have a head tag
+
+### Lecture 90 - React Helmet in Practice
+
+* to use the og standard we need at least the folowing 4 tags: og:title og:type og:image og:url
+* in our app we showcase ontly the og:title and the title
+* in UsersListsPage we import Helmet `import { Helmet } from 'react-helmet';`
+* we add Helmet tag in our render() jsx and wrap the meta tags
+```
+			<Helmet>
+				<title>Users App</title>
+				<meta property="og:title" content="Users App" />
+			</Helmet>
+```
+* this si the frontside browser rendering way to use helmet
+* in SSR we import helmet  in renderer.js after renderTostring and before retuerning html we add `const helmet = Helmet.renderStatic();` extracting all defined tags in Helmet component
+* then in html we interpolate the param settign the tag we want to add to heml
+```
+<head>
+				${helmet.title.toString()}
+				${helmet.meta.toString()}
+				...
+```
+
+### Lecture 91 - Dynamic Title Tags
+
+* we want to customize helmt tag text on the fly based on the redux state
+* we take out helmet jsx from render
+* to  use redux state in helmet we do the obvious 
+```
+<Helmet>
+	<title>{this.props.users.length} Users App</title>
+```
+* we get an error as helmet expects strings inside the tags as a single expression
+* we can fix it with template strings `<title>{`${this.props.users.length} Users App`}</title>`
+
+### Lecture 92 - RenderToString vs RenderToNodeStream
+
+* the cornerstone of our  SSR attempt was [ReactDOMServer](https://reactjs.org/docs/react-dom-server.html) method renderToString
+* there arew other methods available
+	* renderToStaticMarkup() if we dont intend to rehydrate the app (static content)
+	* renderToNodeStream() : like renderToString but this returns a readable stream
+	* renderToStaticNodeStream() : 
+* to showcase renderToNodeStream we use our app and put a tremendus amoun of text t render.
+* we use both methods renderToString and renderToNodeStream
+	* renderToString: browser makes api requests -> build entire html doc -> load entire doc in responce and send it to browseer
+	* renderTONodeStream: Browser makes Request to Renderer Server => Renderer makes api requests -> build tiny snippet of html doc -> send tiny snippet (portion of response) to browser -> build tiny snippet of HTNL doc -> send tiny snippet of html to browser ...
+* so the page is rendrerd and send as a stream bit by bit to browser
+* the reason behind it is performance
+* with rendertonodestream we minimize waiting time or TTFB (time to first byte) (dev tools ->network) this allows us to get better SEO
+* a TTFB of 200ms-300ms is fine. API calls are the bottleneck
+* TTFB in render to node stream is 4x shorter.
+* The PROBLEM with renderToNodeStream is: 
+	* by the time we s tart rendering we start sending content (res object)
+	* so we CANNOT apply redirection or change of status repending on the rendering outcome.
+	* a solution to this involves running JS on browser
+
+## Section 12 - Wrapup
+
+### Lecture 93 - Next Steps and Wrapup
+
+* If you are going SSR do it from App design phase not after implementation
+* To expand the App we stick to the patterns we already implemented
