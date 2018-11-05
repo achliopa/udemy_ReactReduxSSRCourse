@@ -328,7 +328,7 @@ module.exports = merge(baseConfig, config)
 * react router behaviour will be different in inital render and subsequent hydration
 * in traditional react app react reouter works like:
 	* browser reequests /users
-	* express handler of 'app.get('*') responds'
+	* express handler of `app.get('*')` responds
 	* express sends down index.html
 	* express sends down bundle.js
 	* react boots up, react router boots up
@@ -392,7 +392,7 @@ export default (req) => {
 		</StaticRouter>
 	);
 ```
-* eventually we will replace '/' in express handler with '*' to catch all routes
+* eventually we will replace '/' in express handler with `'*'` to catch all routes
 
 ### Lecture 30 - Routing Tiers
 
@@ -972,5 +972,310 @@ export const fetchUsers = () => async (dispatch, getState, api) => {
 
 ### Lecture 66 - Adding an App Component
 
-* we will add App.js  directly in /client folder
+* we will add App.js  directly in /client folder as a functional compoennt
+* we export it an import it in Routes.js
+* we mod the rooutes array. we want App always visible and the inside component visible on condition (depending on path)
+* thw way to do it is put App object on top and the childrens in a routes: property as a nested array
+```
+export default [
+	{
+		...App,
+		routes: [
+			{
+				...HomePage,
+				path: '/',
+				exact: true
+			},
+			{
+				...UsersListPage,
+				path: '/users',
+			}
+		]
+	}
+];
+```
+* we wiant to render the routes as children of App so we add renderROutes inside the App jsx we pas sin  the App the Routes component as prop so we extract the routes as  routes.route
+
+### Lecture 67 - Builidng a Header
+
+* in /componets we add Header.js as functional component and add a Link
+* in App we import Header and add it in JSX
+
+### Lecture 68 - Fetching Auth Status
+
+* we need to determine if user is authenticated to display the appropriate content on header
+* we will need an auth reduder and a fetchCurrentuser action creator
+* we will hit backend APi /current_user route to see if user is authed or not
+* in /actions/index.js we add the action creator
+```
+export const FETCH_CURRENT_USER = 'fetch_current_user';
+export const fetchCurrentuser = () => async (dispatch, getState, api) => {
+	const res = await api.get('/current_user');
+
+	dispatch({
+		type: FETCH_CURRENT_USER,
+		payload: res
+	})
+};
+```
+* we add an authReducer.js and add it to combineReducer
+```
+export default function(state = null, action) {
+	switch(action.type) {
+		case FETCH_CURRENT_USER:
+			return action.payload.data || false;
+		default:
+			return state;
+	}
+}
+```
+* we reurn as state the current user data or false if user is not authenticate (undefined)
+
+### Lecture 69 - Calling FetchCurrentUser
+
+* its the first time we need to add a component that will be called all time and need to have the ability to loadData(). actually App can do it as it is in the routes object list. so we add it there
+* we add it as inline arrow function as we only want to use the store.dispatch() to dispatch the action 
+```
+export default {
+	component: App,
+	laodData: ({dispatch}) => dispatch(fetchCurrentUser())
+};
+```
+
+### Lecture 70 - Connection the Header
+
+* we add connect to Header and usit to pass auth piece of state as prop
+* we test it. we are not signed in as the sign up rpocess was done directly at  the API not at renderer so the cookie is for the API and we hit it from renderer
+* there is no auth contract between browser and renderer
+
+### Lecture 71 - Header Customization
+
+* we add more buttons in the Header. the login/logout button will be implemented like
+```
+	const authButton = auth ? (
+		<a href="/api/logout">Logout</a>
+	) : (
+		<a href="/api/auth/google">Login</a>
+	);
+```
+* why we use /api to our paths??? we do it so it is proxied to the backend API
+* we use the <a href=""></a> as we want to make a full browser request to the backend api  while in the Links we navigate in our react app
+* we test it. redirection happens behind the scenes. 
+* we a re now authed and button changes status
+* google oAuth redirects to localhost:300  because of the X-forwarded-host header option we added in our proxy server setup
+* if we loging inside the API this header tag is not existing in the oauth link
+
+### Lecture 72 - Header Styling
+
+* we ll use materliaze css lib.
+* we use cdn link and stick it in to html in renderer html
+* we wrap our header div in nav tag and add materialize classnames
+* we style Header adding some inline css styling `<div className="center-align" style={{marginTop: '200px'}}>`
+
+## Section 10 - Error handling
+
+### Lecture 73 - 404 Not Found Pages
+
+* we want to show a message when user enters a relative path that is not jimplemented.
+* currently we show blank content but the res.status is 200 not 404
+* we will add a new routing rule and a new NotFoundPage component. a generic rule like ''
+
+### Lecture 74 - Implementing the NotFoundPage
+
+* we add it in /pages
+* just a boilerplate react route. 
+* we export it in config route object style
+```
+export default {
+	component: NotFoundPage
+};
+```
+* we import and add it to Routes routed array
+```
+			{
+				...NotFoundPage
+			}
+```
+
+### Lecture 75 - StatiΨRouter Context
+
+* we need to inform the brwoser the page does not exist with status 404
+* in express we use res.status(404).send() to set status
+* we go to static router in renderer.js the context prop object is what enables us to communicate from our rendered components back to the renderer file
+* this context prop is passed as a prop into any component wrapped inside StaticRouter (components it routes)
+* we receive the prop in the component and set an error propery in the component that has an issue
+* after rendering we check the context and if we see the error property set we mod the res. status in res pobjec tin express. well we pass already the req and store so we ll add res also
+* we will add define the context object  in index.js express inside the promise resolve
+* we use the context in NotFoundPage as a prop named staticContext as styaticRouter internally remnames it before  passing it to the routes as prop
+* in client side rendering the staticContext does not exist!!!!!! so we add defualt val
+* in the compoennt qwe set it `staticContext.notFound = true;`
+* in our router our code becomes
+```
+Promise.all(promises).then(()=>{
+		const context = {};
+		const content = renderer(req,store, context);
+		if (context.notFound) {
+			res.status(404);
+		}
+		res.send(content);
+	});
+```
+
+### Lecture 76 - The Admin Feature 
+
+* is like UsersListPage but with authentication
+* our implementation path: 
+	* add admin action creator and reducers
+	* add admin page
+	* add logic to require auth for admin page
+
+### Lecture 77 - Admins Action Creator and Reducer
+
+* we add the action creator, reducer and addi tit to the combineReducer
+
+### Lecture 78 - Admins Route Components
+
+* AdminsListPage.js going to be almost same like UsersListPage. we add it and add it to Routes.js
+
+### Lecture 79 - Testing Admins Route
+
+* we add the page in Routes.js
+* to test we make sure we are logged in, we visit /admins and we see the list. even with javascript disabled it works
+* we test if we are logged out to hit /admins. with JS disabled our app freezes (unhandled promise)
+
+### Lecture 80 - Promise.all failures
+
+* hanging page is unacceptable.
+* when we visit /adming in backend API without being logged in we get 401 error, when we visit /current_user we get 200 that why the app does not hang then
+* why tha app hangs?
+* in index.js we collect all  matchROutes from ract-config promises and pass them in Promise.all
+```
+const promises = matchRoutes(Routes,req.path).map(({route}) => {
+		return route.loadData ? route.loadData(store) : null;
+	});
+```
+* when ALL resolve we render our app and respond.
+* if even one is rejected??? hang up. we need to chain a catch statement
+
+### Lecture 81 - Error Handling Solution #1
+
+* not ideal, bad way
+* intercept with catch and send a message
+
+```
+.catch(()=>{
+	res.send('Something went wrong')
+});
+```
+* with this approach we do not even attempt to render the page
+* poor and cheap approach
+* many times the fail is because something we can predict and we can communicate the reason to help user
+
+### Lecture 82 - Error Handling Solution #2
+
+* not recommended
+* solution? attempt to render the app and send some message back
+* we put all code in t.then() in an arrow function aoutside and call it in then() and in catch()
+```
+const render = () => {
+	const context = {};
+		const content = renderer(req,store, context);
+		if (context.notFound) {
+			res.status(404);
+		}
+		res.send(content);
+}
+	Promise.all(promises).then(render).catch(render);
+```
+* with this approach we have content on  but no message
+* it is batch because f any of the promises fails it immediately goes to catch(). so if the first fails the following do not even get to finish. so we render unpredictalbe content
+* we need to let the other promises finish before rendering
+
+### Lecture 83 - Error Handling Solution #2
+
+* promise.all by default will go to .catch the first time one promise is rejected
+* what we will do is nasty. we will wrap each promise in another promise that will monitor its status. when the inner promise is rejected or resolved we will RESOLVE the outer promise
+* in this way we give each promise the opprtunity to resolve before we render the page
+* matchRoutes returns an array of promises or null. we chain a second map for the wrapper promises
+```
+.map(promise => {
+		if(promise) {
+			return new Promise((resolve,reject)=>{
+				promise.then(resolve).catch(resolve);
+			});
+		}
+	});
+```
+* we test again blcking JS and also being logged out
+
+### Lecture 84 - The Require Auth Component
+
+* we need to communicate a message to user to understand why he is not viewing content
+* we need to put a new Component in Between like RequireAuth component to do the redirection (like a HOC in a normal React app)
+* App( has 'loadData' to get auth state) => RequireAuth (checks auth state, redirect if not auted) => AdminsListPage has 'loadData' to get admin list state
+* in that way we split rendering process from auth process. we wont stop one for the other fail
+* App LoadData and AdminsListPage 'loadData' run and index.js does nay error handling;when their requests are complete we render the app and do error handling (React error handling using requireAuth)
+* we need to do in both places error handling because use might thry to access protected content without loging in in frontside rendering time
+
+### Lecture 85 - Implementing RequireAuth
+
+* requireAUth will be a HOC... we have it from a previous course (adbance redux)
+* we cp the code from other course and mod it
+```
+export default (ChildComponent) => {
+	class RequireAuth extends Component {
+		
+		render() {
+			switch(this.props.auth) {
+				case false:
+					return <Redirect to="/" />
+				case null:
+					return <div>Loading...</div>
+				default:
+					return <ChildComponent {...this.props} />;
+			}
+		}
+	}
+
+	function mapStateToProps(state) {
+		return {
+			auth: state.auth
+		};
+	}
+
+	return connect(mapStateToProps)(RequireAuth);
+};
+```
+
+### Lecture 86 - Require Auth in Use
+
+* we need to use the hoc to the pages that need auth.
+* we import it in AdminsListPage and wrap the compoent on export
+```
+export default {
+	component: connect(mapStateToProps, { fetchAdmins })(requireAuth(AdminsList)),
+	loadData: ({dispatch}) => dispatch(fetchAdmins())
+};
+```
+* we still have JS disabled on our browser and  without being logged in we try to visit /AdminListPage. we see no content.... so something went wrong with redirection
+
+* Redirect has issues with StaticRouter... we need to play with the context prop object
+
+### Lecture 87 - Handling Redirects
+
+* when we use Redirect tag on SSR. the StaticRouter will add some props in context.object... we need to inspect it and do the redirect
+* context has a REPLACE action with the path in an object (we log it in the express handler at index.js)
+* the actual redirection is donde manually in the promise.all resolve callback by checking the context object for url
+```
+		if (context.url) {
+			return res.redirect(301, context.url);
+		}
+```
+* all this is working with JS disabled....
+* to test SSR we kcn disble JS on the page
+
+## Section 11 - Adding Better SEO Support
+
+### Lecture 88 - Meta Tags
+
 * 
