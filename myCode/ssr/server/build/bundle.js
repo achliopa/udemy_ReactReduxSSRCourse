@@ -186,7 +186,7 @@ var _renderer = __webpack_require__(9);
 
 var _renderer2 = _interopRequireDefault(_renderer);
 
-var _createStore = __webpack_require__(16);
+var _createStore = __webpack_require__(15);
 
 var _createStore2 = _interopRequireDefault(_createStore);
 
@@ -440,12 +440,6 @@ exports.default = {
 
 /***/ }),
 /* 15 */
-/***/ (function(module, exports) {
-
-module.exports = require("axios");
-
-/***/ }),
-/* 16 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -457,11 +451,11 @@ Object.defineProperty(exports, "__esModule", {
 
 var _redux = __webpack_require__(5);
 
-var _reduxThunk = __webpack_require__(17);
+var _reduxThunk = __webpack_require__(16);
 
 var _reduxThunk2 = _interopRequireDefault(_reduxThunk);
 
-var _axios = __webpack_require__(15);
+var _axios = __webpack_require__(17);
 
 var _axios2 = _interopRequireDefault(_axios);
 
@@ -484,10 +478,16 @@ exports.default = function (req) {
 };
 
 /***/ }),
-/* 17 */
+/* 16 */
 /***/ (function(module, exports) {
 
 module.exports = require("redux-thunk");
+
+/***/ }),
+/* 17 */
+/***/ (function(module, exports) {
+
+module.exports = require("axios");
 
 /***/ }),
 /* 18 */
